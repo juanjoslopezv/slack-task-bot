@@ -1,0 +1,24 @@
+{
+  "name": "slack-rovr-taskbot",
+  "version": "1.0.0",
+  "description": "Slack bot that analyzes strapi.rovr codebase to spec out tasks",
+  "main": "dist/app.js",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx src/app.ts",
+    "start": "node dist/app.js",
+    "railway:build": "bash scripts/setup-strapi.sh && npm run build",
+    "railway:start": "node dist/app.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
+    "@slack/bolt": "^4.1.0",
+    "dotenv": "^16.4.7",
+    "jira.js": "^5.3.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.7.0"
+  }
+}
