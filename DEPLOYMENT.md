@@ -6,10 +6,13 @@ This guide walks you through deploying the Slack Rovr TaskBot to Railway with au
 
 - **Detailed Environment Setup**: [docs/RAILWAY-ENV-TEMPLATE.md](docs/RAILWAY-ENV-TEMPLATE.md)
 - **Auto-Update Configuration**: [docs/RAILWAY-WEBHOOKS.md](docs/RAILWAY-WEBHOOKS.md)
+- **Conversation Persistence**: [docs/CONVERSATION-PERSISTENCE.md](docs/CONVERSATION-PERSISTENCE.md)
 
 ## Overview
 
 The bot automatically clones your Strapi repository during the build process on Railway, allowing it to index your content types and routes without manual file management. It can also auto-update when you push to your Strapi repository.
+
+**NEW:** The bot now persists conversation state to disk, so users can continue conversations even after deployments or restarts. See the [Conversation Persistence Guide](docs/CONVERSATION-PERSISTENCE.md) for setup instructions.
 
 ## Prerequisites
 
@@ -107,9 +110,28 @@ Check the Railway logs for:
 ✅ Strapi repository cloned successfully!
 📊 Found X content type schemas
 ✨ Setup complete!
+📂 Loaded X active conversations from disk
+✅ Conversation service initialized with X active threads
 Codebase indexed successfully
 Slack TaskBot is running!
 ```
+
+### 6. Configure Conversation Persistence (Recommended)
+
+> 💾 **Full Guide**: See [docs/CONVERSATION-PERSISTENCE.md](docs/CONVERSATION-PERSISTENCE.md) for complete setup instructions.
+
+To allow conversations to survive restarts and deployments, set up a Railway volume:
+
+1. Go to your Railway service
+2. Click **Settings** → **Volumes**
+3. Click **+ New Volume**
+4. Set **Mount Path**: `/app/data`
+5. Click **Add**
+6. Railway will redeploy automatically
+
+**Without a volume:** Conversations persist only until the container is replaced (acceptable for dev/test, not for production).
+
+**With a volume:** Conversations survive all restarts and deployments, providing seamless user experience.
 
 ## How It Works
 

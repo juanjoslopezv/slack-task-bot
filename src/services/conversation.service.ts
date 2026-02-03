@@ -1,4 +1,10 @@
 import { ConversationMessage } from './claude.service';
+import {
+  loadPersistedState,
+  savePersistedState,
+  savePersistedStateNow,
+  PersistedConversation,
+} from './persistence.service';
 
 type ConversationMode = 'question' | 'task';
 type ConversationStage = 'classifying' | 'questioning' | 'awaiting_jira_choice' | 'complete';
@@ -68,6 +74,71 @@ const MODE_SWITCH_TRIGGERS = [
 ];
 
 const conversations = new Map<string, ConversationState>();
+let isInitialized = false;
+
+/**
+ * Initializes conversation service by loading persisted state
+ * Should be called once on bot startup
+ */
+export async function initializeConversations(): Promise<void> {
+  if (isInitialized) return;
+
+  const persisted = await loadPersistedState();
+
+  // Convert PersistedConversation back to ConversationState
+  for (const [threadTs, conv] of persisted.entries()) {
+    conversations.set(threadTs, {
+      ...conv,
+      createdAt: new Date(conv.lastActivity),
+    });
+  }
+
+  isInitialized = true;
+  console.log(`✅ Conversation service initialized with ${conversations.size} active threads`);
+}
+
+/**
+ * Converts ConversationState to PersistedConversation for saving
+ */
+function toPersistedConversation(conv: ConversationState): PersistedConversation {
+  return {
+    threadTs: conv.threadTs,
+    channelId: conv.channelId,
+    mode: conv.mode,
+    originalRequest: conv.originalRequest,
+    taskType: conv.taskType,
+    affectedAreas: conv.affectedAreas,
+    codebaseContext: conv.codebaseContext,
+    history: conv.history,
+    stage: conv.stage,
+    questionRounds: conv.questionRounds,
+    lastActivity: Date.now(),
+    generatedSpec: conv.generatedSpec,
+    jiraTicketKey: conv.jiraTicketKey,
+  };
+}
+
+/**
+ * Saves current conversation state to disk (debounced)
+ */
+function persistConversations(): void {
+  const persisted = new Map<string, PersistedConversation>();
+  for (const [key, conv] of conversations.entries()) {
+    persisted.set(key, toPersistedConversation(conv));
+  }
+  savePersistedState(persisted);
+}
+
+/**
+ * Gracefully shuts down conversation service, saving state immediately
+ */
+export async function shutdownConversations(): Promise<void> {
+  const persisted = new Map<string, PersistedConversation>();
+  for (const [key, conv] of conversations.entries()) {
+    persisted.set(key, toPersistedConversation(conv));
+  }
+  await savePersistedStateNow(persisted);
+}
 
 export function createConversation(
   threadTs: string,
@@ -93,6 +164,7 @@ export function createConversation(
   };
 
   conversations.set(threadTs, state);
+  persistConversations();
   return state;
 }
 
@@ -105,12 +177,14 @@ export function addBotMessage(threadTs: string, content: string): void {
   if (!conv) return;
   conv.history.push({ role: 'assistant', content });
   conv.questionRounds++;
+  persistConversations();
 }
 
 export function addUserMessage(threadTs: string, content: string): void {
   const conv = conversations.get(threadTs);
   if (!conv) return;
   conv.history.push({ role: 'user', content });
+  persistConversations();
 }
 
 export function shouldGenerateSpec(threadTs: string, latestUserMessage: string): boolean {
@@ -137,15 +211,22 @@ export function markComplete(threadTs: string): void {
   const conv = conversations.get(threadTs);
   if (conv) {
     conv.stage = 'complete';
+    persistConversations();
   }
 }
 
 export function cleanupOldConversations(maxAgeMs: number = 24 * 60 * 60 * 1000): void {
   const now = Date.now();
+  let deletedCount = 0;
   for (const [key, conv] of conversations) {
     if (now - conv.createdAt.getTime() > maxAgeMs) {
       conversations.delete(key);
+      deletedCount++;
     }
+  }
+  if (deletedCount > 0) {
+    persistConversations();
+    console.log(`🧹 Cleaned up ${deletedCount} old conversations`);
   }
 }
 
@@ -162,6 +243,7 @@ export function setAwaitingJiraChoice(threadTs: string, spec: string): void {
   if (conv) {
     conv.stage = 'awaiting_jira_choice';
     conv.generatedSpec = spec;
+    persistConversations();
   }
 }
 
@@ -169,6 +251,7 @@ export function storeJiraTicket(threadTs: string, ticketKey: string): void {
   const conv = conversations.get(threadTs);
   if (conv) {
     conv.jiraTicketKey = ticketKey;
+    persistConversations();
   }
 }
 
@@ -191,6 +274,7 @@ export function switchToTaskMode(
     conv.taskType = taskType;
     conv.affectedAreas = affectedAreas;
     conv.stage = 'questioning';
+    persistConversations();
     // Keep the existing history and context for continuity
   }
 }

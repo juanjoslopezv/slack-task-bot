@@ -3,7 +3,11 @@ import { config } from './config';
 import { handleAppMention } from './handlers/message.handler';
 import { handleThreadReply } from './handlers/thread.handler';
 import { getCodebaseIndex } from './services/codebase.service';
-import { cleanupOldConversations } from './services/conversation.service';
+import {
+  cleanupOldConversations,
+  initializeConversations,
+  shutdownConversations,
+} from './services/conversation.service';
 import { HELP_MESSAGE } from './utils/help';
 
 const app = new App({
@@ -100,6 +104,14 @@ app.command('/help', async ({ command, ack, say }) => {
 setInterval(() => cleanupOldConversations(), 60 * 60 * 1000);
 
 (async () => {
+  // Initialize conversation state from disk (recover from restarts)
+  try {
+    await initializeConversations();
+  } catch (err) {
+    console.error('Failed to load persisted conversations:', err);
+    console.log('Starting with empty conversation state');
+  }
+
   // Pre-index the codebase on startup
   try {
     await getCodebaseIndex();
@@ -108,6 +120,22 @@ setInterval(() => cleanupOldConversations(), 60 * 60 * 1000);
     console.error('Failed to index codebase:', err);
     console.log('Bot will still start, but codebase analysis may fail');
   }
+
+  // Set up graceful shutdown handlers
+  const gracefulShutdown = async (signal: string) => {
+    console.log(`\n${signal} received, shutting down gracefully...`);
+    try {
+      await shutdownConversations();
+      await app.stop();
+      process.exit(0);
+    } catch (err) {
+      console.error('Error during shutdown:', err);
+      process.exit(1);
+    }
+  };
+
+  process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+  process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
   await app.start();
   console.log('Slack TaskBot is running!');
