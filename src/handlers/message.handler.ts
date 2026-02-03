@@ -7,6 +7,7 @@ import {
 } from '../services/codebase.service';
 import { generateQuestions } from '../services/claude.service';
 import { createConversation, addBotMessage } from '../services/conversation.service';
+import { isHelpRequest, HELP_MESSAGE } from '../utils/help';
 
 type AppMentionArgs = SlackEventMiddlewareArgs<'app_mention'> & AllMiddlewareArgs;
 
@@ -16,7 +17,16 @@ export async function handleAppMention({ event, say }: AppMentionArgs): Promise<
 
   if (!rawText) {
     await say({
-      text: "Hey! I can help you in two ways:\n\n*Ask questions* about the strapi.rovr backend:\n• `@TaskBot how does playlist filtering work?`\n• `@TaskBot what fields does the show model have?`\n\n*Request task specs* for features, fixes, or changes:\n• `@TaskBot add a new endpoint to filter playlists by mood`",
+      text: HELP_MESSAGE,
+      thread_ts: event.ts,
+    });
+    return;
+  }
+
+  // Check if this is a help request
+  if (isHelpRequest(rawText)) {
+    await say({
+      text: HELP_MESSAGE,
       thread_ts: event.ts,
     });
     return;

@@ -15,6 +15,7 @@ import {
 } from '../services/conversation.service';
 import { isJiraConfigured, createJiraTicket } from '../services/jira.service';
 import { buildContextForAreas, buildFullContextSummary, getCodebaseIndex } from '../services/codebase.service';
+import { isHelpRequest, HELP_MESSAGE } from '../utils/help';
 
 type MessageArgs = SlackEventMiddlewareArgs<'message'> & AllMiddlewareArgs;
 
@@ -37,6 +38,15 @@ export async function handleThreadReply({ event, say, context }: MessageArgs): P
 
   const userMessage = 'text' in event ? event.text || '' : '';
   if (!userMessage.trim()) return;
+
+  // Check if user is asking for help
+  if (isHelpRequest(userMessage)) {
+    await say({
+      text: HELP_MESSAGE,
+      thread_ts: threadTs,
+    });
+    return;
+  }
 
   // Add user's answer to conversation history
   addUserMessage(threadTs, userMessage);

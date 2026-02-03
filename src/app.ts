@@ -4,6 +4,7 @@ import { handleAppMention } from './handlers/message.handler';
 import { handleThreadReply } from './handlers/thread.handler';
 import { getCodebaseIndex } from './services/codebase.service';
 import { cleanupOldConversations } from './services/conversation.service';
+import { HELP_MESSAGE } from './utils/help';
 
 const app = new App({
   token: config.slack.botToken,
@@ -83,6 +84,16 @@ app.command('/task', async ({ command, ack, say }) => {
     );
     addBotMessage(result.ts, questions);
   }
+});
+
+// Help command
+app.command('/help', async ({ command, ack, say }) => {
+  await ack();
+
+  await say({
+    text: HELP_MESSAGE,
+    channel: command.channel_id,
+  });
 });
 
 // Cleanup stale conversations every hour
