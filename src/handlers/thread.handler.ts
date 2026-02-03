@@ -123,41 +123,9 @@ export async function handleThreadReply({ event, say, context }: MessageArgs): P
     addBotMessage(threadTs, answer);
   } else {
     // Task mode: spec generation flow
-    // Check if user wants to finalize
-    const userWantsSpec = shouldGenerateSpec(threadTs, userMessage);
 
-    if (userWantsSpec) {
-      await say({
-        text: ':memo: Generating your task specification...',
-        thread_ts: threadTs,
-      });
-
-      const spec = await generateSpec(
-        conversation.originalRequest,
-        conversation.codebaseContext,
-        conversation.history
-      );
-
-      // Post spec to Slack
-      await say({
-        text: spec,
-        thread_ts: threadTs,
-      });
-
-      // Offer Jira creation if configured
-      if (isJiraConfigured()) {
-        await say({
-          text: ":ticket: Would you like me to create a Jira ticket for this task?\n\nReply *'yes'* or *'create ticket'* to proceed, or *'no'* / *'skip'* if not needed.",
-          thread_ts: threadTs,
-        });
-        setAwaitingJiraChoice(threadTs, spec);
-      } else {
-        markComplete(threadTs);
-      }
-      return;
-    }
-
-    // Check if user is responding to Jira creation offer
+    // IMPORTANT: Check Jira choice FIRST before checking for spec generation
+    // This prevents "yes" from triggering spec regeneration
     if (conversation.stage === 'awaiting_jira_choice') {
       const userWantsJira = shouldCreateJiraTicket(threadTs, userMessage);
 
@@ -192,6 +160,40 @@ export async function handleThreadReply({ event, say, context }: MessageArgs): P
       }
 
       markComplete(threadTs);
+      return;
+    }
+
+    // Check if user wants to generate spec
+    const userWantsSpec = shouldGenerateSpec(threadTs, userMessage);
+
+    if (userWantsSpec) {
+      await say({
+        text: ':memo: Generating your task specification...',
+        thread_ts: threadTs,
+      });
+
+      const spec = await generateSpec(
+        conversation.originalRequest,
+        conversation.codebaseContext,
+        conversation.history
+      );
+
+      // Post spec to Slack
+      await say({
+        text: spec,
+        thread_ts: threadTs,
+      });
+
+      // Offer Jira creation if configured
+      if (isJiraConfigured()) {
+        await say({
+          text: ":ticket: Would you like me to create a Jira ticket for this task?\n\nReply *'yes'* or *'create ticket'* to proceed, or *'no'* / *'skip'* if not needed.",
+          thread_ts: threadTs,
+        });
+        setAwaitingJiraChoice(threadTs, spec);
+      } else {
+        markComplete(threadTs);
+      }
       return;
     }
 

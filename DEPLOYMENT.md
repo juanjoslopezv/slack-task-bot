@@ -2,9 +2,14 @@
 
 This guide walks you through deploying the Slack Rovr TaskBot to Railway with automatic Strapi repository cloning.
 
+## Quick Links
+
+- **Detailed Environment Setup**: [docs/RAILWAY-ENV-TEMPLATE.md](docs/RAILWAY-ENV-TEMPLATE.md)
+- **Auto-Update Configuration**: [docs/RAILWAY-WEBHOOKS.md](docs/RAILWAY-WEBHOOKS.md)
+
 ## Overview
 
-The bot automatically clones your Strapi repository during the build process on Railway, allowing it to index your content types and routes without manual file management.
+The bot automatically clones your Strapi repository during the build process on Railway, allowing it to index your content types and routes without manual file management. It can also auto-update when you push to your Strapi repository.
 
 ## Prerequisites
 
@@ -25,20 +30,17 @@ The bot automatically clones your Strapi repository during the build process on 
 
 ### 2. Configure Environment Variables
 
-In your Railway project settings, add the following environment variables:
+> 📋 **Detailed Guide**: See [docs/RAILWAY-ENV-TEMPLATE.md](docs/RAILWAY-ENV-TEMPLATE.md) for complete setup instructions with examples.
+
+In your Railway project, go to **Variables** tab and add:
 
 #### Required Variables
 
 ```bash
-# Slack Configuration
 SLACK_BOT_TOKEN=xoxb-your-bot-token
 SLACK_SIGNING_SECRET=your-signing-secret
 SLACK_APP_TOKEN=xapp-your-app-level-token
-
-# Anthropic API
 ANTHROPIC_API_KEY=sk-ant-your-api-key
-
-# Strapi Repository (for Railway deployment)
 STRAPI_REPO_URL=https://github.com/yourorg/strapi.rovr.git
 STRAPI_REPO_BRANCH=dev
 ```
@@ -46,13 +48,7 @@ STRAPI_REPO_BRANCH=dev
 #### Optional Variables
 
 ```bash
-# Claude Model (optional, defaults to claude-sonnet-4-20250514)
 CLAUDE_MODEL=claude-sonnet-4-20250514
-
-# Strapi Clone Path (optional, defaults to /app/strapi-repo)
-STRAPI_CLONE_PATH=/app/strapi-repo
-
-# Jira Integration (optional)
 JIRA_URL=https://yourcompany.atlassian.net
 JIRA_EMAIL=your-email@company.com
 JIRA_API_TOKEN=your-jira-api-token
@@ -62,30 +58,34 @@ JIRA_DEFAULT_ASSIGNEE_ID=557058:82f65dc4-b2d1-44d4-941b-6265205d1f68
 
 ### 3. Configure Strapi Repository Access
 
+> ⚠️ **Important**: Most Strapi repos are private and require authentication!
+
 #### For Public Repositories
-Use the HTTPS URL directly:
 ```bash
 STRAPI_REPO_URL=https://github.com/yourorg/strapi.rovr.git
 ```
 
-#### For Private Repositories
-You have two options:
+#### For Private Repositories (Most Common)
 
-**Option A: Personal Access Token (Recommended)**
+**Step 1**: Create a GitHub Personal Access Token (PAT)
+1. Go to GitHub → **Settings** → **Developer settings** → **Personal access tokens** → **Tokens (classic)**
+2. Click **Generate new token (classic)**
+3. Name it: `Railway Strapi Clone`
+4. Expiration: **No expiration** (or set a reminder)
+5. Scopes: Check **✅ repo** (full repository access)
+6. Click **Generate token**
+7. **Copy the token** (starts with `ghp_...`) - you won't see it again!
+
+**Step 2**: Add Token to Railway `STRAPI_REPO_URL`
+
+Format: `https://USERNAME:TOKEN@github.com/org/repo.git`
+
+Example:
 ```bash
-STRAPI_REPO_URL=https://YOUR_USERNAME:YOUR_PAT@github.com/yourorg/strapi.rovr.git
+STRAPI_REPO_URL=https://myusername:ghp_abc123XYZ789@github.com/myorg/strapi.rovr.git
 ```
 
-**Option B: Deploy Keys**
-1. Generate an SSH key in Railway:
-   ```bash
-   ssh-keygen -t ed25519 -C "railway-deploy"
-   ```
-2. Add the public key to your repository's deploy keys
-3. Use SSH URL:
-   ```bash
-   STRAPI_REPO_URL=git@github.com:yourorg/strapi.rovr.git
-   ```
+**Security**: Railway masks environment variables in logs, so your token is safe.
 
 ### 4. Deploy
 
@@ -142,22 +142,32 @@ This allows flexibility for different deployment scenarios.
 
 ## Updating the Strapi Codebase
 
-Railway doesn't automatically re-clone the repository. To update:
+The bot needs to redeploy to get fresh Strapi codebase context.
 
 ### Option 1: Manual Redeploy
 1. Go to your Railway project
 2. Click **Deployments** → **Redeploy** on the latest deployment
-3. This will re-run the build script and clone the latest code from the configured branch
+3. This will re-run the build script and clone the latest code
 
-### Option 2: Webhook Automation
-Set up a webhook to trigger Railway deployments when you push to the Strapi dev branch:
+### Option 2: Automatic Updates via Webhook (Recommended)
 
-1. In Railway: **Settings** → **Webhooks** → Copy webhook URL
-2. In your Strapi repo: **Settings** → **Webhooks** → Add webhook
-3. Set URL to Railway webhook
-4. Trigger on: `push` events to `dev` branch
+> 🔄 **Detailed Guide**: See [docs/RAILWAY-WEBHOOKS.md](docs/RAILWAY-WEBHOOKS.md) for complete setup instructions.
 
-Now every push to dev will automatically redeploy the bot with fresh codebase context.
+**Quick Setup:**
+1. Railway → **Settings** → **Webhooks** → Generate webhook
+2. Copy the webhook URL
+3. GitHub → Your Strapi repo → **Settings** → **Webhooks** → Add webhook
+4. Paste Railway webhook URL
+5. Select: Trigger on **push** events only
+6. Save
+
+**Result**: Every push to `dev` branch automatically redeploys the bot with fresh codebase context!
+
+**Benefits**:
+- ✅ Always up-to-date context
+- ✅ Zero manual intervention
+- ✅ Team members' changes reflected automatically
+- ✅ Fast feedback (2-3 minute redeploy)
 
 ## Troubleshooting
 

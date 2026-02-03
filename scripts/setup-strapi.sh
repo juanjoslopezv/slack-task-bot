@@ -8,7 +8,17 @@ echo "🔧 Setting up Strapi repository for indexing..."
 # Check if required env vars are set
 if [ -z "$STRAPI_REPO_URL" ]; then
   echo "❌ ERROR: STRAPI_REPO_URL environment variable is not set"
-  echo "   Please set it to your Strapi repository URL (e.g., https://github.com/yourorg/strapi.rovr.git)"
+  echo ""
+  echo "   For PUBLIC repositories:"
+  echo "   STRAPI_REPO_URL=https://github.com/yourorg/strapi.rovr.git"
+  echo ""
+  echo "   For PRIVATE repositories, include authentication:"
+  echo "   STRAPI_REPO_URL=https://USERNAME:GITHUB_TOKEN@github.com/yourorg/strapi.rovr.git"
+  echo ""
+  echo "   To create a GitHub Personal Access Token:"
+  echo "   1. Go to GitHub → Settings → Developer settings → Personal access tokens → Tokens (classic)"
+  echo "   2. Generate new token with 'repo' scope"
+  echo "   3. Copy the token and use it in the URL above"
   exit 1
 fi
 
@@ -28,7 +38,25 @@ fi
 
 # Clone the repository
 echo "⬇️  Cloning repository..."
-git clone --depth 1 --branch "$BRANCH" "$STRAPI_REPO_URL" "$CLONE_DIR"
+
+# Mask sensitive URL in logs (hide tokens)
+MASKED_URL=$(echo "$STRAPI_REPO_URL" | sed -E 's|(https?://)[^:]+:[^@]+@|\1***:***@|')
+echo "   From: $MASKED_URL"
+
+if ! git clone --depth 1 --branch "$BRANCH" "$STRAPI_REPO_URL" "$CLONE_DIR" 2>&1 | grep -v "warning: --depth"; then
+  echo ""
+  echo "❌ ERROR: Failed to clone repository"
+  echo ""
+  echo "   Common issues:"
+  echo "   1. Repository is private and needs authentication in the URL"
+  echo "   2. Branch '$BRANCH' doesn't exist"
+  echo "   3. GitHub token has expired or lacks 'repo' scope"
+  echo "   4. Network connectivity issues"
+  echo ""
+  echo "   For private repos, set STRAPI_REPO_URL with authentication:"
+  echo "   https://USERNAME:GITHUB_TOKEN@github.com/yourorg/strapi.rovr.git"
+  exit 1
+fi
 
 # Verify the clone was successful
 if [ ! -d "$CLONE_DIR/src/api" ]; then
