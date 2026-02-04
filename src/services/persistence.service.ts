@@ -1,6 +1,7 @@
 import * as fs from 'fs/promises';
 import * as path from 'path';
 import { ConversationMessage } from './claude.service';
+import { config } from '../config';
 
 const DATA_DIR = process.env.PERSISTENCE_DIR || '/app/data';
 const STATE_FILE = path.join(DATA_DIR, 'conversations.json');
@@ -53,9 +54,9 @@ export async function loadPersistedState(): Promise<Map<string, PersistedConvers
 
     const conversations = new Map<string, PersistedConversation>();
 
-    // Clean up conversations older than 24 hours on load
+    // Clean up conversations older than configured retention period on load
     const now = Date.now();
-    const maxAge = 24 * 60 * 60 * 1000;
+    const maxAge = config.conversation.retentionHours * 60 * 60 * 1000;
 
     for (const [threadTs, conv] of Object.entries(parsed.conversations)) {
       if (now - conv.lastActivity < maxAge) {
@@ -63,7 +64,7 @@ export async function loadPersistedState(): Promise<Map<string, PersistedConvers
       }
     }
 
-    console.log(`📂 Loaded ${conversations.size} active conversations from disk`);
+    console.log(`📂 Loaded ${conversations.size} active conversations from disk (retention: ${config.conversation.retentionHours}h)`);
     return conversations;
   } catch (err: any) {
     if (err.code === 'ENOENT') {

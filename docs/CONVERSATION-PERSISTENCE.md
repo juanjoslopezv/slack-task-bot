@@ -33,7 +33,7 @@ For each active conversation thread, the bot saves:
 
 **On Startup:**
 1. Bot loads persisted state from disk
-2. Conversations older than 24 hours are discarded
+2. Conversations older than configured retention period are discarded
 3. Active conversations are restored to memory
 4. Bot continues responding to existing threads
 
@@ -42,6 +42,32 @@ For each active conversation thread, the bot saves:
 2. Immediately saves all conversation state to disk
 3. Gracefully stops the Slack connection
 4. Exits cleanly
+
+### Automatic History Recovery
+
+If the bot loses conversation context (e.g., persistence file was deleted or retention period expired), it can automatically recover by fetching the Slack thread history:
+
+**Recovery Process:**
+1. User replies to a thread with lost context
+2. Bot checks if thread is within retention period
+3. Bot fetches all messages from the Slack thread
+4. Bot reconstructs conversation history
+5. Bot notifies user: "I had to recover our conversation history after a restart"
+6. Conversation continues seamlessly
+
+**When Recovery Happens:**
+- Persistence file is missing or corrupted
+- Thread was cleaned up due to age
+- Bot was redeployed without volume mount
+
+**When Recovery Fails:**
+- Thread is older than retention period
+- Recovery is disabled (`ENABLE_HISTORY_RECOVERY=false`)
+- Slack API error occurs
+
+**User Notification:**
+- Success: `:arrows_counterclockwise: I had to recover our conversation history...`
+- Failure: `:warning: I lost the context of our conversation (retention: Xh)...`
 
 ## Railway Configuration
 
@@ -110,16 +136,23 @@ PERSISTENCE_DIR=/Users/juanjo/Projects/data
 
 The data directory will be created automatically if it doesn't exist.
 
-## Environment Variable
+## Environment Variables
 
 ```bash
 # Optional: Override persistence directory
 PERSISTENCE_DIR=/app/data
+
+# Optional: Configure retention period (in hours)
+CONVERSATION_RETENTION_HOURS=24
+
+# Optional: Enable/disable automatic history recovery
+ENABLE_HISTORY_RECOVERY=true
 ```
 
 **Default values:**
-- Railway: `/app/data` (requires volume mount)
-- Local: `/app/data` (will be created in project root)
+- `PERSISTENCE_DIR`: `/app/data` (Railway with volume, or local directory)
+- `CONVERSATION_RETENTION_HOURS`: `24` (conversations older than this are deleted)
+- `ENABLE_HISTORY_RECOVERY`: `true` (automatically recover conversations from Slack)
 
 ## Testing Persistence
 
@@ -266,9 +299,9 @@ If you need to change `PERSISTENCE_DIR`:
 
 ### Data Retention
 
-- Conversations auto-delete after 24 hours
+- Conversations auto-delete after configured retention period (default: 24 hours)
 - No permanent conversation logs are kept
-- Adjust `cleanupOldConversations()` if different retention needed
+- Configure via `CONVERSATION_RETENTION_HOURS` environment variable
 
 ## Advanced Configuration
 
@@ -285,14 +318,34 @@ setInterval(() => cleanupOldConversations(), 30 * 60 * 1000);
 
 ### Custom Retention Period
 
-Modify [src/services/conversation.service.ts](../src/services/conversation.service.ts):
-```typescript
-// Default: 24 hours (24 * 60 * 60 * 1000)
-export function cleanupOldConversations(maxAgeMs: number = 24 * 60 * 60 * 1000)
+Set via environment variable (recommended):
+```bash
+# Railway: Set in environment variables
+CONVERSATION_RETENTION_HOURS=48
 
-// Custom: 48 hours
-cleanupOldConversations(48 * 60 * 60 * 1000);
+# Local: Set in .env
+CONVERSATION_RETENTION_HOURS=72
 ```
+
+**Examples:**
+- `CONVERSATION_RETENTION_HOURS=12` - 12 hours (short retention)
+- `CONVERSATION_RETENTION_HOURS=48` - 48 hours (medium retention)
+- `CONVERSATION_RETENTION_HOURS=168` - 1 week (long retention)
+
+**Note:** Longer retention periods increase disk usage and memory footprint.
+
+### Disable Automatic History Recovery
+
+To disable automatic conversation recovery from Slack:
+```bash
+ENABLE_HISTORY_RECOVERY=false
+```
+
+When disabled:
+- Bot will not fetch Slack thread history
+- Users will be notified immediately when context is lost
+- Reduces Slack API calls
+- Useful for privacy-sensitive environments
 
 ### Disable Persistence
 
@@ -306,8 +359,10 @@ The bot will log errors but continue working with in-memory state only.
 ## Benefits
 
 ✅ **Seamless Deployments** - Users can continue conversations after redeploys
-✅ **Improved UX** - No "I don't remember our conversation" messages
+✅ **Automatic Recovery** - Fetches lost conversations from Slack thread history
+✅ **Improved UX** - Clear notifications when context is lost or recovered
 ✅ **Context Preservation** - Full conversation history maintained
+✅ **Configurable Retention** - Set retention period via environment variable
 ✅ **Automatic Cleanup** - Old conversations purged automatically
 ✅ **Graceful Shutdowns** - State saved before container stops
 ✅ **Zero Config** - Works out of the box with sensible defaults

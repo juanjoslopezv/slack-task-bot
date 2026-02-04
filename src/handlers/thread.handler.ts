@@ -12,14 +12,17 @@ import {
   storeJiraTicket,
   shouldSwitchToTaskMode,
   switchToTaskMode,
+  createConversation,
 } from '../services/conversation.service';
 import { isJiraConfigured, createJiraTicket } from '../services/jira.service';
 import { buildContextForAreas, buildFullContextSummary, getCodebaseIndex } from '../services/codebase.service';
 import { isHelpRequest, HELP_MESSAGE } from '../utils/help';
+import { recoverConversationFromSlack, shouldAttemptRecovery } from '../services/history-recovery.service';
+import { config } from '../config';
 
 type MessageArgs = SlackEventMiddlewareArgs<'message'> & AllMiddlewareArgs;
 
-export async function handleThreadReply({ event, say, context }: MessageArgs): Promise<void> {
+export async function handleThreadReply({ event, say, context, client }: MessageArgs): Promise<void> {
   // Only handle threaded messages
   if (!('thread_ts' in event) || !event.thread_ts) return;
 
@@ -28,9 +31,66 @@ export async function handleThreadReply({ event, say, context }: MessageArgs): P
   if ('subtype' in event && event.subtype) return;
 
   const threadTs = event.thread_ts;
-  const conversation = getConversation(threadTs);
+  const channelId = event.channel;
+  let conversation = getConversation(threadTs);
 
-  // Only handle threads we're tracking
+  // Attempt to recover conversation if missing
+  if (!conversation && shouldAttemptRecovery(threadTs)) {
+    const botUserId = context.botUserId || '';
+    const recovered = await recoverConversationFromSlack(
+      { client } as any, // Pass client as simplified app interface
+      channelId,
+      threadTs,
+      botUserId
+    );
+
+    if (recovered && recovered.history.length > 0) {
+      // Successfully recovered - notify user and recreate conversation
+      await say({
+        text: `:arrows_counterclockwise: I had to recover our conversation history after a restart. I've restored ${recovered.messageCount} messages. Let's continue!`,
+        thread_ts: threadTs,
+      });
+
+      // Get codebase context and recreate conversation
+      const codebaseIndex = await getCodebaseIndex();
+      const codebaseContext = buildFullContextSummary(codebaseIndex);
+
+      // Try to classify the original request to determine task type
+      let taskType: 'feature' | 'fix' | 'change' | null = null;
+      let affectedAreas: string[] = [];
+      try {
+        const classification = await classifyRequest(recovered.originalRequest);
+        taskType = classification.type;
+        affectedAreas = classification.affectedAreas;
+      } catch {
+        // If classification fails, use defaults
+      }
+
+      // Recreate conversation with recovered history
+      conversation = createConversation(
+        threadTs,
+        channelId,
+        'task', // Default to task mode for recovered conversations
+        recovered.originalRequest,
+        taskType,
+        affectedAreas,
+        codebaseContext
+      );
+
+      // Restore the conversation history
+      conversation.history = recovered.history;
+      conversation.questionRounds = Math.floor(recovered.history.length / 2);
+    } else {
+      // Recovery failed or no history - notify user
+      await say({
+        text: `:warning: I lost the context of our conversation (retention: ${config.conversation.retentionHours} hours). Please start a new thread or briefly remind me what we were discussing.`,
+        thread_ts: threadTs,
+      });
+      return;
+    }
+  }
+
+  // If still no conversation, it's not a thread we're tracking
   if (!conversation) return;
 
   // Don't process messages in completed conversations

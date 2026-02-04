@@ -5,6 +5,7 @@ import {
   savePersistedStateNow,
   PersistedConversation,
 } from './persistence.service';
+import { config } from '../config';
 
 type ConversationMode = 'question' | 'task';
 type ConversationStage = 'classifying' | 'questioning' | 'awaiting_jira_choice' | 'complete';
@@ -215,7 +216,8 @@ export function markComplete(threadTs: string): void {
   }
 }
 
-export function cleanupOldConversations(maxAgeMs: number = 24 * 60 * 60 * 1000): void {
+export function cleanupOldConversations(): void {
+  const maxAgeMs = config.conversation.retentionHours * 60 * 60 * 1000;
   const now = Date.now();
   let deletedCount = 0;
   for (const [key, conv] of conversations) {
@@ -226,7 +228,7 @@ export function cleanupOldConversations(maxAgeMs: number = 24 * 60 * 60 * 1000):
   }
   if (deletedCount > 0) {
     persistConversations();
-    console.log(`🧹 Cleaned up ${deletedCount} old conversations`);
+    console.log(`🧹 Cleaned up ${deletedCount} old conversations (retention: ${config.conversation.retentionHours}h)`);
   }
 }
 
