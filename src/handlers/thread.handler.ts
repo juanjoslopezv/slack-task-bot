@@ -99,6 +99,20 @@ export async function handleThreadReply({ event, say, context, client }: Message
   const userMessage = 'text' in event ? event.text || '' : '';
   if (!userMessage.trim()) return;
 
+  // Check if this message is just tagging other users to help
+  // (e.g., "@Shak can you help us respond these questions?")
+  // If so, silently skip — the bot should wait for actual answers
+  const botUserId = context.botUserId || '';
+  const otherUserMentions = (userMessage.match(/<@[A-Z0-9]+>/g) || [])
+    .filter(mention => mention !== `<@${botUserId}>`);
+  if (otherUserMentions.length > 0) {
+    const textWithoutMentions = userMessage.replace(/<@[A-Z0-9]+>/g, '').trim();
+    // If the non-mention text is short and doesn't contain substantive answers, skip
+    if (textWithoutMentions.length < 120 && !textWithoutMentions.includes('\n')) {
+      return;
+    }
+  }
+
   // Check if user is asking for help
   if (isHelpRequest(userMessage)) {
     await say({

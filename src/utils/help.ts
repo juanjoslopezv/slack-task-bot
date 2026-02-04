@@ -83,11 +83,21 @@ export const HELP_TRIGGERS = [
 export function isHelpRequest(message: string): boolean {
   const normalized = message.toLowerCase().trim();
 
+  // Strip Slack user mentions — if someone is tagging other users
+  // (e.g., "@Shak can you help us?"), it's not a help request to the bot
+  const withoutMentions = normalized.replace(/<@[a-z0-9]+>/gi, '').trim();
+
   // Direct "help" or "?"
-  if (normalized === 'help' || normalized === '?') {
+  if (withoutMentions === 'help' || withoutMentions === '?') {
     return true;
   }
 
+  // If the original message contains user mentions, it's likely directed
+  // at those users, not a help request to the bot
+  if (/<@[a-z0-9]+>/i.test(normalized)) {
+    return false;
+  }
+
   // Contains help triggers
-  return HELP_TRIGGERS.some(trigger => normalized.includes(trigger));
+  return HELP_TRIGGERS.some(trigger => withoutMentions.includes(trigger));
 }
