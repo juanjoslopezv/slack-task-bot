@@ -30,6 +30,7 @@ export const config = {
   },
   conversation: {
     retentionHours: parseInt(process.env.CONVERSATION_RETENTION_HOURS || '24', 10),
+    recoveryMaxHours: parseInt(process.env.RECOVERY_MAX_HOURS || '168', 10),
     enableHistoryRecovery: process.env.ENABLE_HISTORY_RECOVERY !== 'false', // Default: true
   },
 };

@@ -92,8 +92,8 @@ export function shouldAttemptRecovery(threadTs: string): boolean {
   const threadTime = parseFloat(threadTs) * 1000;
   const now = Date.now();
   const threadAge = now - threadTime;
-  const maxAge = config.conversation.retentionHours * 60 * 60 * 1000;
+  const maxAge = config.conversation.recoveryMaxHours * 60 * 60 * 1000;
 
-  // Only attempt recovery if thread is within retention period
+  // Only attempt recovery if thread is within recovery window
   return threadAge < maxAge;
 }

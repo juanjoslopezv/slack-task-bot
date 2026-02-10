@@ -12,6 +12,13 @@ import { isHelpRequest, HELP_MESSAGE } from '../utils/help';
 type AppMentionArgs = SlackEventMiddlewareArgs<'app_mention'> & AllMiddlewareArgs;
 
 export async function handleAppMention({ event, say }: AppMentionArgs): Promise<void> {
+  // If this mention is inside an existing thread, let the message handler deal with it.
+  // Slack fires both app_mention and message events for in-thread mentions;
+  // the message handler (handleThreadReply) has the recovery logic we need.
+  if (event.thread_ts) {
+    return;
+  }
+
   // Strip the bot mention from the message to get the actual request
   const rawText = event.text.replace(/<@[A-Z0-9]+>/g, '').trim();
 

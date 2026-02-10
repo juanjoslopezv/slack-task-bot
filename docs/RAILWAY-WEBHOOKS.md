@@ -1,51 +1,67 @@
-# Railway Auto-Update Setup with GitHub Webhooks
+# Railway Auto-Update Setup for External Strapi Repo Changes
 
-This guide explains how to configure automatic redeployment of your TaskBot when the Strapi `dev` branch is updated.
+This guide explains how to automatically redeploy the TaskBot when the **external strapi.rovr repository** is updated, so the bot re-indexes the latest content types and routes.
 
-## Overview
+## The Problem
 
-When you push changes to your Strapi repository's `dev` branch, GitHub will automatically trigger a Railway redeploy, which:
-1. Re-clones the latest Strapi code
-2. Re-indexes content types and routes
-3. Restarts the bot with fresh context
+The TaskBot already auto-deploys on Railway when its own code changes (via GitHub integration). However, it also clones and indexes the **strapi.rovr** codebase on startup. When developers push changes to the Strapi repo's `dev` branch, the bot needs to be redeployed so it picks up the new schemas, routes, and fields.
+
+Railway's GitHub auto-deploy only watches the TaskBot's own repo — it has no awareness of external repos. To solve this, we use a **GitHub Actions workflow in the Strapi repo** that calls Railway's GraphQL API to trigger a redeploy of the TaskBot service.
+
+## How It Works
+
+```
+Developer pushes to strapi.rovr dev branch
+         |
+GitHub Actions workflow triggers in strapi.rovr repo
+         |
+Workflow calls Railway GraphQL API (serviceInstanceRedeploy)
+         |
+Railway redeploys the slack-task-bot service
+         |
+Build starts: setup-strapi.sh runs
+         |
+Clones latest Strapi code from dev branch
+         |
+Indexes fresh content types & routes
+         |
+Bot restarts with updated context
+         |
+Users get answers based on latest Strapi code
+```
 
 ## Setup Steps
 
-### 1. Get Railway Webhook URL
+### 1. Generate a Railway API Token
 
-1. Go to your Railway project dashboard
-2. Click on your **slack-rovr-taskbot** service
-3. Navigate to **Settings** tab
-4. Scroll to **Webhooks** section
-5. Click **Generate a Webhook**
-6. Copy the webhook URL (looks like: `https://railway.app/api/v1/webhooks/...`)
+1. Go to your Railway dashboard
+2. Click your profile avatar > **Account Settings** > **Tokens**
+3. Create a new API token
+4. Save it securely — you'll need it as a GitHub secret in the Strapi repo
 
-### 2. Configure GitHub Webhook
+### 2. Find Your Service and Environment IDs
 
-#### Option A: Repository-wide Webhook (Recommended)
-
-1. Go to your Strapi repository on GitHub
-2. Click **Settings** → **Webhooks** → **Add webhook**
-3. Configure:
+1. Open the **slack-task-bot** service in the Railway dashboard
+2. Look at the URL — it contains your IDs:
    ```
-   Payload URL: [Paste Railway webhook URL]
-   Content type: application/json
-   Secret: [Leave empty or use Railway's secret if provided]
+   https://railway.com/project/<PROJECT_ID>/service/<SERVICE_ID>?environmentId=<ENV_ID>
    ```
-4. **Which events would you like to trigger this webhook?**
-   - Select "Let me select individual events"
-   - Check **only** "Pushes"
-   - Uncheck everything else
-5. Click **Add webhook**
+3. Copy the `SERVICE_ID` and `ENV_ID` values
 
-#### Option B: Branch-specific (GitHub Actions)
+### 3. Add Secrets to the Strapi Repository
 
-For more control, use GitHub Actions to only trigger on `dev` branch:
+In the **strapi.rovr** GitHub repo, go to **Settings** > **Secrets and variables** > **Actions** and add:
 
-Create `.github/workflows/notify-railway.yml` in your Strapi repo:
+- `RAILWAY_API_TOKEN` — your Railway API token
+- `RAILWAY_SERVICE_ID` — the slack-task-bot service ID
+- `RAILWAY_ENVIRONMENT_ID` — the slack-task-bot environment ID
+
+### 4. Create the GitHub Actions Workflow
+
+Create `.github/workflows/notify-taskbot.yml` in the **strapi.rovr** repo:
 
 ```yaml
-name: Notify Railway on Dev Push
+name: Redeploy TaskBot on Strapi Changes
 
 on:
   push:
@@ -53,177 +69,142 @@ on:
       - dev
 
 jobs:
-  notify:
+  redeploy-taskbot:
     runs-on: ubuntu-latest
     steps:
-      - name: Trigger Railway Redeploy
+      - name: Trigger TaskBot Redeploy
         run: |
-          curl -X POST "${{ secrets.RAILWAY_WEBHOOK_URL }}"
+          curl -sf https://backboard.railway.com/graphql/v2 \
+            -X POST \
+            -H "Authorization: Bearer ${{ secrets.RAILWAY_API_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            --data '{
+              "query": "mutation { serviceInstanceRedeploy(serviceId: \"${{ secrets.RAILWAY_SERVICE_ID }}\", environmentId: \"${{ secrets.RAILWAY_ENVIRONMENT_ID }}\") }"
+            }'
 ```
 
-Then add `RAILWAY_WEBHOOK_URL` as a repository secret.
+### 5. Test It
 
-### 3. Test the Webhook
-
-1. Make a small change to your Strapi repo `dev` branch
+1. Make a small change in the strapi.rovr `dev` branch
 2. Commit and push:
    ```bash
    git add .
-   git commit -m "Test Railway webhook"
+   git commit -m "Test TaskBot redeploy trigger"
    git push origin dev
    ```
-3. Check Railway dashboard:
-   - You should see a new deployment triggered
-   - Watch the build logs for "Cloning repository..." message
-   - Verify new content types are indexed
+3. Check GitHub Actions in the strapi.rovr repo — the workflow should run successfully
+4. Check Railway dashboard — a new deployment of slack-task-bot should appear
+5. Once deployed, ask the bot in Slack about the new changes to confirm it has fresh context
 
-### 4. Verify Auto-Update Works
+## Reducing Unnecessary Deploys
 
-After the redeploy completes:
-1. Go to Slack
-2. Ask the bot about something new from your Strapi changes
-3. Confirm it has the latest codebase context
+Not every Strapi push needs a bot redeploy. Here are ways to filter triggers:
 
-## Webhook Event Flow
+### Only trigger on API/schema changes
 
-```
-Developer pushes to dev branch
-         ↓
-GitHub webhook fires
-         ↓
-Railway receives webhook
-         ↓
-Railway triggers new deployment
-         ↓
-Build starts: setup-strapi.sh runs
-         ↓
-Clones latest Strapi code from dev branch
-         ↓
-Indexes fresh content types & routes
-         ↓
-Bot restarts with updated context
-         ↓
-Users get answers based on latest code
-```
-
-## Troubleshooting
-
-### Webhook not triggering Railway deploys
-
-1. **Check GitHub webhook delivery**:
-   - GitHub → Repo → Settings → Webhooks
-   - Click on your webhook
-   - View "Recent Deliveries"
-   - Should show successful 200 responses
-
-2. **Verify Railway webhook is active**:
-   - Railway → Service → Settings → Webhooks
-   - Ensure webhook is listed and enabled
-
-3. **Test manually**:
-   ```bash
-   curl -X POST https://railway.app/api/v1/webhooks/YOUR-WEBHOOK-ID
-   ```
-
-### Webhook fires but deploy fails
-
-Check Railway build logs for:
-- **Authentication errors**: Update `STRAPI_REPO_URL` with valid GitHub token
-- **Branch not found**: Verify `STRAPI_REPO_BRANCH=dev` is correct
-- **Out of memory**: Railway may need more resources (upgrade plan)
-
-### Too many deploys triggering
-
-If you're pushing frequently and don't want every push to redeploy:
-
-**Option 1**: Use branch-specific webhook (Option B above)
-
-**Option 2**: Add a path filter in GitHub Actions:
 ```yaml
 on:
   push:
     branches:
       - dev
     paths:
-      - 'src/api/**'  # Only trigger on API changes
+      - 'src/api/**'
+      - 'src/components/**'
 ```
 
-## Advanced Configuration
-
-### Selective Triggering by Commit Message
-
-Use GitHub Actions to only deploy on specific commit messages:
+### Only trigger on explicit deploy commits
 
 ```yaml
-name: Conditional Railway Deploy
+jobs:
+  redeploy-taskbot:
+    runs-on: ubuntu-latest
+    if: contains(github.event.head_commit.message, '[deploy-bot]')
+    steps:
+      - name: Trigger TaskBot Redeploy
+        run: |
+          curl -sf https://backboard.railway.com/graphql/v2 \
+            -X POST \
+            -H "Authorization: Bearer ${{ secrets.RAILWAY_API_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            --data '{
+              "query": "mutation { serviceInstanceRedeploy(serviceId: \"${{ secrets.RAILWAY_SERVICE_ID }}\", environmentId: \"${{ secrets.RAILWAY_ENVIRONMENT_ID }}\") }"
+            }'
+```
 
+Then only commits with `[deploy-bot]` in the message will trigger a redeploy.
+
+## Troubleshooting
+
+### GitHub Actions workflow fails
+
+1. **Check workflow logs**: GitHub > strapi.rovr repo > Actions > click the failed run
+2. **401 Unauthorized**: The `RAILWAY_API_TOKEN` is invalid or expired — regenerate it in Railway
+3. **Invalid service/environment ID**: Double-check `RAILWAY_SERVICE_ID` and `RAILWAY_ENVIRONMENT_ID` from the dashboard URL
+
+### Test the API call manually
+
+```bash
+curl -sf https://backboard.railway.com/graphql/v2 \
+  -X POST \
+  -H "Authorization: Bearer YOUR_TOKEN" \
+  -H "Content-Type: application/json" \
+  --data '{"query": "mutation { serviceInstanceRedeploy(serviceId: \"YOUR_SERVICE_ID\", environmentId: \"YOUR_ENV_ID\") }"}'
+```
+
+### Deploy triggers but build fails
+
+Check Railway build logs for:
+- **Authentication errors**: Update `STRAPI_REPO_URL` with a valid GitHub token
+- **Branch not found**: Verify `STRAPI_REPO_BRANCH=dev` is correct
+- **Out of memory**: Railway may need more resources (upgrade plan)
+
+## Multiple Environment Setup
+
+For staging and production bots watching different Strapi branches:
+
+```yaml
 on:
   push:
     branches:
       - dev
+      - main
 
 jobs:
-  notify:
+  redeploy:
     runs-on: ubuntu-latest
-    if: contains(github.event.head_commit.message, '[deploy]')
     steps:
-      - name: Trigger Railway
-        run: curl -X POST "${{ secrets.RAILWAY_WEBHOOK_URL }}"
+      - name: Redeploy Staging Bot
+        if: github.ref == 'refs/heads/dev'
+        run: |
+          curl -sf https://backboard.railway.com/graphql/v2 \
+            -X POST \
+            -H "Authorization: Bearer ${{ secrets.RAILWAY_API_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            --data '{
+              "query": "mutation { serviceInstanceRedeploy(serviceId: \"${{ secrets.RAILWAY_STAGING_SERVICE_ID }}\", environmentId: \"${{ secrets.RAILWAY_STAGING_ENV_ID }}\") }"
+            }'
+
+      - name: Redeploy Production Bot
+        if: github.ref == 'refs/heads/main'
+        run: |
+          curl -sf https://backboard.railway.com/graphql/v2 \
+            -X POST \
+            -H "Authorization: Bearer ${{ secrets.RAILWAY_API_TOKEN }}" \
+            -H "Content-Type: application/json" \
+            --data '{
+              "query": "mutation { serviceInstanceRedeploy(serviceId: \"${{ secrets.RAILWAY_PROD_SERVICE_ID }}\", environmentId: \"${{ secrets.RAILWAY_PROD_ENV_ID }}\") }"
+            }'
 ```
 
-Now only commits with `[deploy]` in the message trigger redeployment.
+## Important Notes
 
-### Multiple Environment Webhooks
+- Railway webhooks are **outbound notifications only** — they notify you when deploys happen, they cannot trigger deploys
+- There is no simple REST webhook URL in Railway to trigger a redeploy; the GraphQL API is the supported method
+- The TaskBot's own code changes still auto-deploy via Railway's GitHub integration as usual
 
-For staging and production bots:
+## References
 
-1. Create separate Railway services:
-   - `taskbot-staging` (uses `dev` branch)
-   - `taskbot-production` (uses `main` branch)
-
-2. Configure separate webhooks for each
-
-3. Use GitHub Actions to trigger appropriate webhook:
-   ```yaml
-   on:
-     push:
-       branches:
-         - dev
-         - main
-
-   jobs:
-     deploy:
-       runs-on: ubuntu-latest
-       steps:
-         - name: Deploy Staging
-           if: github.ref == 'refs/heads/dev'
-           run: curl -X POST "${{ secrets.RAILWAY_WEBHOOK_STAGING }}"
-
-         - name: Deploy Production
-           if: github.ref == 'refs/heads/main'
-           run: curl -X POST "${{ secrets.RAILWAY_WEBHOOK_PROD }}"
-   ```
-
-## Benefits
-
-✅ **Always Up-to-Date** - Bot context stays in sync with codebase
-✅ **Zero Maintenance** - Automatic updates, no manual redeploys
-✅ **Fast Feedback** - Push to dev, bot updates within minutes
-✅ **Team Friendly** - Everyone's changes automatically reflected
-
-## Cost Considerations
-
-- Each webhook trigger counts as a deployment
-- Railway free tier includes limited build minutes
-- Consider using commit message filters to reduce unnecessary deploys
-- Production bots may want scheduled updates instead
-
-## Alternative: Scheduled Updates
-
-Instead of webhooks, use Railway's cron jobs to update daily:
-
-1. Create a script to trigger redeploy via Railway API
-2. Run it on a schedule (e.g., nightly)
-3. Reduces build costs while keeping reasonably fresh
-
-Railway doesn't natively support cron-triggered deploys, so webhooks are the recommended approach.
+- [Manage Services with the Public API](https://docs.railway.com/guides/manage-services)
+- [Manage Deployments with the Public API](https://docs.railway.com/guides/manage-deployments)
+- [Controlling GitHub Auto-Deploys](https://docs.railway.com/guides/github-autodeploys)
+- [Railway Webhooks (outbound notifications only)](https://docs.railway.com/guides/webhooks)
