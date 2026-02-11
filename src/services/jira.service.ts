@@ -241,6 +241,41 @@ export async function getAssignableProjectUsers(): Promise<JiraUser[]> {
 }
 
 /**
+ * Convert plain text to Atlassian Document Format (ADF).
+ * Splits on blank lines into paragraphs, and uses hardBreak for single newlines.
+ */
+function textToAdf(text: string): object {
+  const paragraphs = text.split(/\n{2,}/);
+
+  const content = paragraphs
+    .filter(p => p.trim())
+    .map(paragraph => {
+      const lines = paragraph.split('\n');
+      const inlineContent: any[] = [];
+
+      lines.forEach((line, i) => {
+        if (i > 0) {
+          inlineContent.push({ type: 'hardBreak' });
+        }
+        if (line) {
+          inlineContent.push({ type: 'text', text: line });
+        }
+      });
+
+      return {
+        type: 'paragraph',
+        content: inlineContent,
+      };
+    });
+
+  return {
+    type: 'doc',
+    version: 1,
+    content,
+  };
+}
+
+/**
  * Create a Jira ticket with the spec content
  */
 export async function createJiraTicket(
@@ -261,13 +296,17 @@ export async function createJiraTicket(
     const summary = parseSpecTitle(spec);
     const issueType = mapTaskTypeToJiraIssueType(taskType);
 
+    // Convert spec text to Atlassian Document Format (ADF)
+    // ADF text nodes cannot contain newlines — split into paragraphs
+    const adfDescription = textToAdf(spec);
+
     // Prepare the issue fields
     const fields: any = {
       project: {
         key: config.jira.projectKey,
       },
       summary,
-      description: spec,
+      description: adfDescription,
       issuetype: {
         name: issueType,
       },
@@ -305,11 +344,15 @@ export async function createJiraTicket(
 
     // Extract meaningful error message
     let errorMessage = 'Unknown error occurred';
-    if (error.response?.data?.errorMessages) {
-      errorMessage = error.response.data.errorMessages.join(', ');
-    } else if (error.response?.data?.errors) {
-      const errors = error.response.data.errors;
-      errorMessage = Object.keys(errors).map(key => `${key}: ${errors[key]}`).join(', ');
+    const errorMessages = error.response?.data?.errorMessages;
+    const fieldErrors = error.response?.data?.errors;
+
+    if (errorMessages?.length) {
+      errorMessage = errorMessages.join(', ');
+    } else if (fieldErrors && Object.keys(fieldErrors).length) {
+      errorMessage = Object.keys(fieldErrors)
+        .map(key => `${key}: ${JSON.stringify(fieldErrors[key])}`)
+        .join(', ');
     } else if (error.message) {
       errorMessage = error.message;
     }
