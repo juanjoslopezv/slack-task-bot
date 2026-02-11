@@ -110,14 +110,15 @@ async function createTicketAndAssignSprint(
 
     await say({ text: message, thread_ts: threadTs });
     storeJiraTicket(threadTs, result.key!);
+    markComplete(threadTs);
   } else {
     await say({
-      text: `:warning: Failed to create Jira ticket: ${result.error}\n\nYou can create it manually using the spec above.`,
+      text: `:warning: Failed to create Jira ticket: ${result.error}\n\nReply *'retry'* or *'create ticket'* to try again, or *'skip'* if not needed.`,
       thread_ts: threadTs,
     });
+    // Reset to awaiting_jira_choice so user can retry
+    setAwaitingJiraChoice(threadTs, conversation.generatedSpec!);
   }
-
-  markComplete(threadTs);
 }
 
 /**
@@ -233,7 +234,13 @@ export async function handleThreadReply({ event, say, context, client }: Message
   if (!conversation) return;
 
   // Don't process messages in completed conversations
-  if (conversation.stage === 'complete') return;
+  if (conversation.stage === 'complete') {
+    await say({
+      text: ':white_check_mark: This conversation is complete. Please start a new thread or @mention me to begin a new request.',
+      thread_ts: threadTs,
+    });
+    return;
+  }
 
   const userMessage = 'text' in event ? event.text || '' : '';
   if (!userMessage.trim()) return;
