@@ -8,7 +8,13 @@ import {
 import { config } from '../config';
 
 type ConversationMode = 'question' | 'task';
-type ConversationStage = 'classifying' | 'questioning' | 'awaiting_jira_choice' | 'complete';
+type ConversationStage =
+  | 'classifying'
+  | 'questioning'
+  | 'awaiting_jira_choice'
+  | 'awaiting_reporter_selection'
+  | 'awaiting_sprint_selection'
+  | 'complete';
 
 interface ConversationState {
   threadTs: string;
@@ -24,6 +30,13 @@ interface ConversationState {
   createdAt: Date;
   generatedSpec?: string;  // Store spec for Jira creation
   jiraTicketKey?: string;  // Store created ticket key
+  slackUserId?: string;
+  resolvedReporterAccountId?: string;
+  resolvedReporterName?: string;
+  resolvedSprintId?: number;
+  resolvedSprintName?: string;
+  pendingReporterOptions?: Array<{ accountId: string; displayName: string }>;
+  pendingSprintOptions?: Array<{ id: number; name: string; state: string }>;
 }
 
 const MAX_QUESTION_ROUNDS = 5;
@@ -116,6 +129,13 @@ function toPersistedConversation(conv: ConversationState): PersistedConversation
     lastActivity: Date.now(),
     generatedSpec: conv.generatedSpec,
     jiraTicketKey: conv.jiraTicketKey,
+    slackUserId: conv.slackUserId,
+    resolvedReporterAccountId: conv.resolvedReporterAccountId,
+    resolvedReporterName: conv.resolvedReporterName,
+    resolvedSprintId: conv.resolvedSprintId,
+    resolvedSprintName: conv.resolvedSprintName,
+    pendingReporterOptions: conv.pendingReporterOptions,
+    pendingSprintOptions: conv.pendingSprintOptions,
   };
 }
 
@@ -148,7 +168,8 @@ export function createConversation(
   originalRequest: string,
   taskType: 'feature' | 'fix' | 'change' | null,
   affectedAreas: string[],
-  codebaseContext: string
+  codebaseContext: string,
+  slackUserId?: string
 ): ConversationState {
   const state: ConversationState = {
     threadTs,
@@ -162,6 +183,7 @@ export function createConversation(
     stage: 'questioning',
     questionRounds: 0,
     createdAt: new Date(),
+    slackUserId,
   };
 
   conversations.set(threadTs, state);
@@ -279,4 +301,72 @@ export function switchToTaskMode(
     persistConversations();
     // Keep the existing history and context for continuity
   }
+}
+
+export function setAwaitingReporterSelection(
+  threadTs: string,
+  options: Array<{ accountId: string; displayName: string }>
+): void {
+  const conv = conversations.get(threadTs);
+  if (conv) {
+    conv.stage = 'awaiting_reporter_selection';
+    conv.pendingReporterOptions = options;
+    persistConversations();
+  }
+}
+
+export function setAwaitingSprintSelection(
+  threadTs: string,
+  options: Array<{ id: number; name: string; state: string }>
+): void {
+  const conv = conversations.get(threadTs);
+  if (conv) {
+    conv.stage = 'awaiting_sprint_selection';
+    conv.pendingSprintOptions = options;
+    persistConversations();
+  }
+}
+
+export function setResolvedReporter(
+  threadTs: string,
+  accountId: string,
+  displayName: string
+): void {
+  const conv = conversations.get(threadTs);
+  if (conv) {
+    conv.resolvedReporterAccountId = accountId;
+    conv.resolvedReporterName = displayName;
+    persistConversations();
+  }
+}
+
+export function setResolvedSprint(
+  threadTs: string,
+  sprintId: number,
+  sprintName: string
+): void {
+  const conv = conversations.get(threadTs);
+  if (conv) {
+    conv.resolvedSprintId = sprintId;
+    conv.resolvedSprintName = sprintName;
+    persistConversations();
+  }
+}
+
+/**
+ * Parse a numeric selection from user message (e.g., "2" or "option 2").
+ * Returns 0-based index or -1 if not a valid selection.
+ */
+export function parseNumericSelection(
+  message: string,
+  maxOptions: number
+): number {
+  const normalized = message.trim();
+  const match = normalized.match(/^(?:option\s*|#)?(\d+)$/i);
+  if (!match) return -1;
+
+  const num = parseInt(match[1], 10);
+  if (num < 1 || num > maxOptions) return -1;
+
+  return num - 1;
 }

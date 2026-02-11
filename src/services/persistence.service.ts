@@ -15,11 +15,19 @@ export interface PersistedConversation {
   affectedAreas: string[];
   codebaseContext: string;
   history: ConversationMessage[];
-  stage: 'classifying' | 'questioning' | 'awaiting_jira_choice' | 'complete';
+  stage: 'classifying' | 'questioning' | 'awaiting_jira_choice'
+       | 'awaiting_reporter_selection' | 'awaiting_sprint_selection' | 'complete';
   questionRounds: number;
   lastActivity: number;
   generatedSpec?: string;
   jiraTicketKey?: string;
+  slackUserId?: string;
+  resolvedReporterAccountId?: string;
+  resolvedReporterName?: string;
+  resolvedSprintId?: number;
+  resolvedSprintName?: string;
+  pendingReporterOptions?: Array<{ accountId: string; displayName: string }>;
+  pendingSprintOptions?: Array<{ id: number; name: string; state: string }>;
 }
 
 interface PersistedState {

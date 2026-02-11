@@ -95,7 +95,8 @@ export async function handleAppMention({ event, say }: AppMentionArgs): Promise<
       rawText,
       null,
       classification.affectedAreas,
-      codebaseContext
+      codebaseContext,
+      event.user
     );
 
     const answer = await answerQuestion(rawText, codebaseContext, []);
@@ -117,7 +118,8 @@ export async function handleAppMention({ event, say }: AppMentionArgs): Promise<
       rawText,
       classification.type,
       classification.affectedAreas,
-      codebaseContext
+      codebaseContext,
+      event.user
     );
 
     const typeLabel = classification.type

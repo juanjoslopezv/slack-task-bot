@@ -27,6 +27,7 @@ export const config = {
     apiToken: process.env.JIRA_API_TOKEN || '',
     projectKey: process.env.JIRA_PROJECT_KEY || '',
     defaultAssigneeId: process.env.JIRA_DEFAULT_ASSIGNEE_ID || '',
+    boardId: process.env.JIRA_BOARD_ID || '',
   },
   conversation: {
     retentionHours: parseInt(process.env.CONVERSATION_RETENTION_HOURS || '24', 10),

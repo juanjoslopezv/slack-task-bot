@@ -84,7 +84,8 @@ app.command('/task', async ({ command, ack, say }) => {
       command.text,
       classification.type,
       classification.affectedAreas,
-      codebaseContext
+      codebaseContext,
+      command.user_id
     );
     addBotMessage(result.ts, questions);
   }
