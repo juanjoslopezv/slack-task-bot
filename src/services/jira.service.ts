@@ -31,6 +31,7 @@ export interface JiraTicketResult {
   key?: string;
   url?: string;
   error?: string;
+  reporterDropped?: boolean;
 }
 
 export interface JiraSprint {
@@ -342,24 +343,71 @@ export async function createJiraTicket(
   } catch (error: any) {
     console.error('Failed to create Jira ticket:', error);
 
-    // Extract meaningful error message
-    let errorMessage = 'Unknown error occurred';
-    const errorMessages = error.response?.data?.errorMessages;
     const fieldErrors = error.response?.data?.errors;
 
-    if (errorMessages?.length) {
-      errorMessage = errorMessages.join(', ');
-    } else if (fieldErrors && Object.keys(fieldErrors).length) {
-      errorMessage = Object.keys(fieldErrors)
-        .map(key => `${key}: ${JSON.stringify(fieldErrors[key])}`)
-        .join(', ');
-    } else if (error.message) {
-      errorMessage = error.message;
+    // If the error is specifically about the reporter field, retry without it
+    if (reporterAccountId && fieldErrors?.reporter) {
+      console.log('Reporter field not available on create screen, retrying without reporter...');
+      try {
+        const summary = parseSpecTitle(spec);
+        const issueType = mapTaskTypeToJiraIssueType(taskType);
+        const adfDescription = textToAdf(spec);
+
+        const retryFields: any = {
+          project: { key: config.jira.projectKey },
+          summary,
+          description: adfDescription,
+          issuetype: { name: issueType },
+        };
+
+        if (config.jira.defaultAssigneeId) {
+          retryFields.assignee = { id: config.jira.defaultAssigneeId };
+        }
+
+        const response = await jiraClient.issues.createIssue({
+          fields: retryFields,
+        });
+
+        const ticketUrl = `${config.jira.url}/browse/${response.key}`;
+
+        return {
+          success: true,
+          key: response.key,
+          url: ticketUrl,
+          reporterDropped: true,
+        };
+      } catch (retryError: any) {
+        console.error('Retry without reporter also failed:', retryError);
+        return {
+          success: false,
+          error: extractJiraErrorMessage(retryError),
+        };
+      }
     }
 
     return {
       success: false,
-      error: errorMessage,
+      error: extractJiraErrorMessage(error),
     };
   }
+}
+
+/**
+ * Extract a meaningful error message from a Jira API error.
+ */
+function extractJiraErrorMessage(error: any): string {
+  const errorMessages = error.response?.data?.errorMessages;
+  const fieldErrors = error.response?.data?.errors;
+
+  if (errorMessages?.length) {
+    return errorMessages.join(', ');
+  } else if (fieldErrors && Object.keys(fieldErrors).length) {
+    return Object.keys(fieldErrors)
+      .map(key => `${key}: ${JSON.stringify(fieldErrors[key])}`)
+      .join(', ');
+  } else if (error.message) {
+    return error.message;
+  }
+
+  return 'Unknown error occurred';
 }

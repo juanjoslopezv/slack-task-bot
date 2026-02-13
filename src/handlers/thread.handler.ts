@@ -91,7 +91,9 @@ async function createTicketAndAssignSprint(
   if (result.success) {
     let message = `:white_check_mark: Jira ticket created: <${result.url}|${result.key}>`;
 
-    if (conversation.resolvedReporterName) {
+    if (result.reporterDropped) {
+      message += `\n:warning: Reporter field is not available on the Jira create screen — ticket created with default reporter.`;
+    } else if (conversation.resolvedReporterName) {
       message += `\n:bust_in_silhouette: Reporter: ${conversation.resolvedReporterName}`;
     }
 
