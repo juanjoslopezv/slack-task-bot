@@ -10,6 +10,7 @@ import {
   markComplete,
   setAwaitingJiraChoice,
   shouldCreateJiraTicket,
+  shouldDeclineJiraTicket,
   storeJiraTicket,
   shouldSwitchToTaskMode,
   switchToTaskMode,
@@ -406,12 +407,17 @@ export async function handleThreadReply({ event, say, context, client }: Message
             );
           }
         }
-      } else {
+      } else if (shouldDeclineJiraTicket(threadTs, userMessage)) {
         await say({
           text: ':ok_hand: No problem! The spec is ready above.',
           thread_ts: threadTs,
         });
         markComplete(threadTs);
+      } else {
+        await say({
+          text: ":thinking_face: I didn't quite catch that. Reply *'yes'* or *'create ticket'* to create a Jira ticket, or *'no'* / *'skip'* if not needed.",
+          thread_ts: threadTs,
+        });
       }
       return;
     }

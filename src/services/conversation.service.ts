@@ -61,12 +61,26 @@ const JIRA_AFFIRMATIVE_TRIGGERS = [
   'yeah',
   'sure',
   'create ticket',
+  'create tickt',
   'create jira',
   'make ticket',
   'make jira',
   'go ahead',
   'do it',
   'please',
+  'ticket',
+];
+
+const JIRA_NEGATIVE_TRIGGERS = [
+  'no',
+  'nope',
+  'nah',
+  'skip',
+  'no thanks',
+  'not needed',
+  'don\'t create',
+  'dont create',
+  'no ticket',
 ];
 
 const MODE_SWITCH_TRIGGERS = [
@@ -260,6 +274,14 @@ export function shouldCreateJiraTicket(threadTs: string, userMessage: string): b
 
   const normalized = userMessage.toLowerCase().trim();
   return JIRA_AFFIRMATIVE_TRIGGERS.some(trigger => normalized.includes(trigger));
+}
+
+export function shouldDeclineJiraTicket(threadTs: string, userMessage: string): boolean {
+  const conv = conversations.get(threadTs);
+  if (!conv || conv.stage !== 'awaiting_jira_choice') return false;
+
+  const normalized = userMessage.toLowerCase().trim();
+  return JIRA_NEGATIVE_TRIGGERS.some(trigger => normalized.includes(trigger));
 }
 
 export function setAwaitingJiraChoice(threadTs: string, spec: string): void {
