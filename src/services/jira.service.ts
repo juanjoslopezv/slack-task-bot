@@ -320,70 +320,42 @@ export async function createJiraTicket(
       };
     }
 
-    // Add reporter if provided
-    if (reporterAccountId) {
-      fields.reporter = {
-        id: reporterAccountId,
-      };
-    }
-
-    // Create the issue
+    // Create the issue (without reporter — many Jira projects don't have
+    // the Reporter field on the create screen, which causes the API to reject it)
     const response = await jiraClient.issues.createIssue({
       fields,
     });
 
-    // Construct the ticket URL
-    const ticketUrl = `${config.jira.url}/browse/${response.key}`;
+    const ticketKey = response.key!;
+    const ticketUrl = `${config.jira.url}/browse/${ticketKey}`;
+
+    // Set reporter via a separate update call (edit screen usually allows it)
+    if (reporterAccountId) {
+      try {
+        await jiraClient.issues.editIssue({
+          issueIdOrKey: ticketKey,
+          fields: {
+            reporter: { id: reporterAccountId },
+          },
+        });
+      } catch (reporterError: any) {
+        console.warn(`Failed to set reporter on ${ticketKey}:`, reporterError.message);
+        return {
+          success: true,
+          key: ticketKey,
+          url: ticketUrl,
+          reporterDropped: true,
+        };
+      }
+    }
 
     return {
       success: true,
-      key: response.key,
+      key: ticketKey,
       url: ticketUrl,
     };
   } catch (error: any) {
     console.error('Failed to create Jira ticket:', error);
-
-    const fieldErrors = error.response?.data?.errors;
-
-    // If the error is specifically about the reporter field, retry without it
-    if (reporterAccountId && fieldErrors?.reporter) {
-      console.log('Reporter field not available on create screen, retrying without reporter...');
-      try {
-        const summary = parseSpecTitle(spec);
-        const issueType = mapTaskTypeToJiraIssueType(taskType);
-        const adfDescription = textToAdf(spec);
-
-        const retryFields: any = {
-          project: { key: config.jira.projectKey },
-          summary,
-          description: adfDescription,
-          issuetype: { name: issueType },
-        };
-
-        if (config.jira.defaultAssigneeId) {
-          retryFields.assignee = { id: config.jira.defaultAssigneeId };
-        }
-
-        const response = await jiraClient.issues.createIssue({
-          fields: retryFields,
-        });
-
-        const ticketUrl = `${config.jira.url}/browse/${response.key}`;
-
-        return {
-          success: true,
-          key: response.key,
-          url: ticketUrl,
-          reporterDropped: true,
-        };
-      } catch (retryError: any) {
-        console.error('Retry without reporter also failed:', retryError);
-        return {
-          success: false,
-          error: extractJiraErrorMessage(retryError),
-        };
-      }
-    }
 
     return {
       success: false,
