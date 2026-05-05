@@ -306,12 +306,18 @@ export async function handleThreadReply({ event, say, context, client }: Message
         );
 
         await say({ text: spec, thread_ts: threadTs });
-        await say({
-          text: ":ticket: Does this look right? Reply *'yes'* or *'create ticket'* to create a Jira ticket, or suggest any changes.",
-          thread_ts: threadTs,
-        });
 
-        setAwaitingJiraChoice(threadTs, spec);
+        if (isJiraConfigured()) {
+          await say({
+            text: ":ticket: Does this look right? Reply *'yes'* or *'create ticket'* to create a Jira ticket, or suggest any changes.",
+            thread_ts: threadTs,
+          });
+          // Switch to task mode so the awaiting_jira_choice handler can process the confirmation
+          switchToTaskMode(threadTs, conversation.taskType, conversation.affectedAreas);
+          setAwaitingJiraChoice(threadTs, spec);
+        } else {
+          markComplete(threadTs);
+        }
       } catch (error: any) {
         await say({
           text: `:warning: Failed to generate spec: ${error.message}\n\nPlease try again or start a new thread.`,
