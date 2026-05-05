@@ -69,10 +69,21 @@ Just @mention me and ask! I'm here to make task specification easier.
 
 _Happy speccing!_ :rocket:`;
 
+// Words/phrases that may follow "how to use" / "how do i use" and still mean the user
+// is asking about the bot, not a codebase feature.
+const HOW_TO_USE_WHITELIST = [
+  '',
+  'this',
+  'you',
+  'it',
+  'the bot',
+  'this bot',
+  'taskbot',
+  'the taskbot',
+];
+
+// Simple includes-based triggers (specific enough to not produce false positives)
 export const HELP_TRIGGERS = [
-  'help',
-  'how do i use',
-  'how to use',
   'what can you do',
   'commands',
   'instructions',
@@ -82,9 +93,6 @@ export const HELP_TRIGGERS = [
 
 export function isHelpRequest(message: string): boolean {
   const normalized = message.toLowerCase().trim();
-
-  // Strip Slack user mentions — if someone is tagging other users
-  // (e.g., "@Shak can you help us?"), it's not a help request to the bot
   const withoutMentions = normalized.replace(/<@[a-z0-9]+>/gi, '').trim();
 
   // Direct "help" or "?"
@@ -92,12 +100,21 @@ export function isHelpRequest(message: string): boolean {
     return true;
   }
 
-  // If the original message contains user mentions, it's likely directed
-  // at those users, not a help request to the bot
+  // Whitelist-based check for "how to use" / "how do i use".
+  // Only matches when nothing follows (or only bot-synonym words follow),
+  // so "how to use playlists/..." correctly falls through as a codebase question.
+  for (const prefix of ['how to use', 'how do i use']) {
+    if (withoutMentions.startsWith(prefix)) {
+      const remainder = withoutMentions.slice(prefix.length).trim();
+      return HOW_TO_USE_WHITELIST.includes(remainder);
+    }
+  }
+
+  // If the message contains user mentions it is likely directed at those users,
+  // not a help request to the bot (unless already matched above).
   if (/<@[a-z0-9]+>/i.test(normalized)) {
     return false;
   }
 
-  // Contains help triggers
   return HELP_TRIGGERS.some(trigger => withoutMentions.includes(trigger));
 }
