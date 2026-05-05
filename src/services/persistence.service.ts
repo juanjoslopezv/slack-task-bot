@@ -22,6 +22,7 @@ export interface PersistedConversation {
   generatedSpec?: string;
   jiraTicketKey?: string;
   slackUserId?: string;
+  hintedReporterSlackId?: string;
   resolvedReporterAccountId?: string;
   resolvedReporterName?: string;
   resolvedSprintId?: number;
