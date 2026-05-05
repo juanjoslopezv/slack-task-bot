@@ -7,6 +7,7 @@
     "build": "tsc",
     "dev": "tsx src/app.ts",
     "start": "node dist/app.js",
+    "test": "vitest run",
     "railway:build": "bash scripts/setup-strapi.sh && npm run build",
     "railway:start": "node dist/app.js"
   },
@@ -19,6 +20,7 @@
   "devDependencies": {
     "@types/node": "^22.10.0",
     "tsx": "^4.19.0",
-    "typescript": "^5.7.0"
+    "typescript": "^5.7.0",
+    "vitest": "^4.1.5"
   }
 }
