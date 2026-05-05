@@ -31,6 +31,7 @@ interface ConversationState {
   generatedSpec?: string;  // Store spec for Jira creation
   jiraTicketKey?: string;  // Store created ticket key
   slackUserId?: string;
+  hintedReporterSlackId?: string;
   resolvedReporterAccountId?: string;
   resolvedReporterName?: string;
   resolvedSprintId?: number;
@@ -101,6 +102,20 @@ const MODE_SWITCH_TRIGGERS = [
   'spec this',
 ];
 
+export const TICKET_CREATION_TRIGGERS = [
+  'create ticket',
+  'create a ticket',
+  'make ticket',
+  'make a ticket',
+  'open a ticket',
+  'log a ticket',
+  'create jira',
+  'make a jira',
+  'open jira',
+  'file a ticket',
+  'submit a ticket',
+];
+
 const conversations = new Map<string, ConversationState>();
 let isInitialized = false;
 
@@ -144,6 +159,7 @@ function toPersistedConversation(conv: ConversationState): PersistedConversation
     generatedSpec: conv.generatedSpec,
     jiraTicketKey: conv.jiraTicketKey,
     slackUserId: conv.slackUserId,
+    hintedReporterSlackId: conv.hintedReporterSlackId,
     resolvedReporterAccountId: conv.resolvedReporterAccountId,
     resolvedReporterName: conv.resolvedReporterName,
     resolvedSprintId: conv.resolvedSprintId,
@@ -309,6 +325,14 @@ export function shouldSwitchToTaskMode(threadTs: string, userMessage: string): b
   return MODE_SWITCH_TRIGGERS.some(trigger => normalized.includes(trigger));
 }
 
+export function shouldCreateTicketFromQuestion(threadTs: string, userMessage: string): boolean {
+  const conv = conversations.get(threadTs);
+  if (!conv || conv.mode !== 'question') return false;
+
+  const withoutMentions = userMessage.toLowerCase().replace(/<@[a-z0-9]+>/gi, '').trim();
+  return TICKET_CREATION_TRIGGERS.some(trigger => withoutMentions.includes(trigger));
+}
+
 export function switchToTaskMode(
   threadTs: string,
   taskType: 'feature' | 'fix' | 'change' | null,
@@ -371,6 +395,14 @@ export function setResolvedSprint(
   if (conv) {
     conv.resolvedSprintId = sprintId;
     conv.resolvedSprintName = sprintName;
+    persistConversations();
+  }
+}
+
+export function setHintedReporter(threadTs: string, slackUserId: string): void {
+  const conv = conversations.get(threadTs);
+  if (conv) {
+    conv.hintedReporterSlackId = slackUserId;
     persistConversations();
   }
 }
