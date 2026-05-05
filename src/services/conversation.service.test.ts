@@ -3,6 +3,8 @@ import {
   createConversation,
   shouldCreateTicketFromQuestion,
   TICKET_CREATION_TRIGGERS,
+  setHintedReporter,
+  getConversation,
 } from './conversation.service';
 
 // conversation.service uses a module-level Map; reset between tests
@@ -62,5 +64,15 @@ describe('shouldCreateTicketFromQuestion', () => {
     const taskThread = 'test-thread-task-' + Date.now();
     createConversation(taskThread, 'C123', 'task', 'Add feature', 'feature', [], 'ctx');
     expect(shouldCreateTicketFromQuestion(taskThread, 'create a ticket')).toBe(false);
+  });
+});
+
+describe('setHintedReporter', () => {
+  it('stores hintedReporterSlackId on the conversation', () => {
+    const ts = 'test-hint-reporter-' + Date.now();
+    createConversation(ts, 'C123', 'question', 'Some question', null, [], 'ctx');
+    setHintedReporter(ts, 'U999ABC');
+    const conv = getConversation(ts);
+    expect(conv?.hintedReporterSlackId).toBe('U999ABC');
   });
 });
