@@ -20,6 +20,9 @@ import {
   setResolvedReporter,
   setResolvedSprint,
   parseNumericSelection,
+  shouldCreateTicketFromQuestion,
+  setHintedReporter,
+  TICKET_CREATION_TRIGGERS,
 } from '../services/conversation.service';
 import {
   isJiraConfigured,
@@ -256,8 +259,11 @@ export async function handleThreadReply({ event, say, context, client }: Message
     .filter(mention => mention !== `<@${botUserId}>`);
   if (otherUserMentions.length > 0) {
     const textWithoutMentions = userMessage.replace(/<@[A-Z0-9]+>/g, '').trim();
-    // If the non-mention text is short and doesn't contain substantive answers, skip
-    if (textWithoutMentions.length < 120 && !textWithoutMentions.includes('\n')) {
+    const hasTicketTrigger = TICKET_CREATION_TRIGGERS.some(t =>
+      textWithoutMentions.toLowerCase().includes(t)
+    );
+    // Drop mention-only messages unless they contain an actionable ticket creation command
+    if (!hasTicketTrigger && textWithoutMentions.length < 120 && !textWithoutMentions.includes('\n')) {
       return;
     }
   }
@@ -276,6 +282,45 @@ export async function handleThreadReply({ event, say, context, client }: Message
 
   // Route based on conversation mode
   if (conversation.mode === 'question') {
+    // Check if user wants to create a Jira ticket from this Q&A thread
+    if (shouldCreateTicketFromQuestion(threadTs, userMessage)) {
+      // Extract the last non-bot mention as reporter hint (e.g., "create ticket for @Juan")
+      const mentionMatches = (userMessage.match(/<@[A-Z0-9]+>/g) || [])
+        .filter(m => m !== `<@${botUserId}>`);
+      if (mentionMatches.length > 0) {
+        const lastMention = mentionMatches[mentionMatches.length - 1];
+        const hintedSlackId = lastMention.replace(/<@([A-Z0-9]+)>/, '$1');
+        setHintedReporter(threadTs, hintedSlackId);
+      }
+
+      await say({
+        text: ':memo: Generating a spec from our conversation for your review...',
+        thread_ts: threadTs,
+      });
+
+      try {
+        const spec = await generateSpec(
+          conversation.originalRequest,
+          conversation.codebaseContext,
+          conversation.history
+        );
+
+        await say({ text: spec, thread_ts: threadTs });
+        await say({
+          text: ":ticket: Does this look right? Reply *'yes'* or *'create ticket'* to create a Jira ticket, or suggest any changes.",
+          thread_ts: threadTs,
+        });
+
+        setAwaitingJiraChoice(threadTs, spec);
+      } catch (error: any) {
+        await say({
+          text: `:warning: Failed to generate spec: ${error.message}\n\nPlease try again or start a new thread.`,
+          thread_ts: threadTs,
+        });
+      }
+      return;
+    }
+
     // Check if user wants to switch to task/spec mode
     if (shouldSwitchToTaskMode(threadTs, userMessage)) {
       await say({
@@ -359,8 +404,9 @@ export async function handleThreadReply({ event, say, context, client }: Message
         });
 
         // Parallel auto-resolution: reporter (via Slack email) AND active sprint
+        const reporterSlackId = conversation.hintedReporterSlackId ?? conversation.slackUserId;
         const [resolvedReporter, activeSprint] = await Promise.all([
-          resolveReporterFromSlack(conversation.slackUserId, client),
+          resolveReporterFromSlack(reporterSlackId, client),
           getActiveSprint(),
         ]);
 
