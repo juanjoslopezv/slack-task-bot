@@ -35,6 +35,18 @@ describe('isHelpRequest', () => {
     expect(isHelpRequest('how do i use this')).toBe(true);
   });
 
+  it('matches "how to use this?" with trailing punctuation', () => {
+    expect(isHelpRequest('how to use this?')).toBe(true);
+  });
+
+  it('matches "how do i use you!" with trailing punctuation', () => {
+    expect(isHelpRequest('how do i use you!')).toBe(true);
+  });
+
+  it('matches "how to use the bot." with trailing punctuation', () => {
+    expect(isHelpRequest('how to use the bot.')).toBe(true);
+  });
+
   it('matches "how to use <@U123ABC>" (mention stripped → empty remainder)', () => {
     // Slack encodes mentions as <@USERID>
     expect(isHelpRequest('how to use <@U123ABC>')).toBe(true);

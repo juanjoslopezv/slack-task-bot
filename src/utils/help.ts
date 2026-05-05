@@ -105,7 +105,7 @@ export function isHelpRequest(message: string): boolean {
   // so "how to use playlists/..." correctly falls through as a codebase question.
   for (const prefix of ['how to use', 'how do i use']) {
     if (withoutMentions.startsWith(prefix)) {
-      const remainder = withoutMentions.slice(prefix.length).trim();
+      const remainder = withoutMentions.slice(prefix.length).trim().replace(/[?!.,;:]+$/, '');
       return HOW_TO_USE_WHITELIST.includes(remainder);
     }
   }
