@@ -60,7 +60,7 @@ SLACK_SIGNING_SECRET=...           # From app Basic Information page
 SLACK_APP_TOKEN=xapp-...           # App-level token for Socket Mode
 ANTHROPIC_API_KEY=sk-ant-...       # Anthropic API key
 STRAPI_PROJECT_PATH=/Users/juanjo/Projects/Rovr/repos/strapi.rovr
-CLAUDE_MODEL=claude-sonnet-4-20250514
+CLAUDE_MODEL=claude-sonnet-4-6
 ```
 
 ### 3. Run
