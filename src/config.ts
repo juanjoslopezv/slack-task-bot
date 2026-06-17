@@ -16,7 +16,7 @@ export const config = {
   },
   anthropic: {
     apiKey: requireEnv('ANTHROPIC_API_KEY'),
-    model: process.env.CLAUDE_MODEL || 'claude-sonnet-4-20250514',
+    model: process.env.CLAUDE_MODEL || 'claude-sonnet-4-6',
   },
   strapi: {
     projectPath: process.env.STRAPI_PROJECT_PATH || process.env.STRAPI_CLONE_PATH || '/app/strapi-repo',

@@ -109,7 +109,7 @@ ANTHROPIC_API_KEY=sk-ant-your-api-key
 STRAPI_PROJECT_PATH=/path/to/your/strapi/project
 
 # Optional: Claude Model
-CLAUDE_MODEL=claude-sonnet-4-20250514
+CLAUDE_MODEL=claude-sonnet-4-6
 
 # Optional: Jira Integration
 JIRA_URL=https://yourcompany.atlassian.net
@@ -135,7 +135,7 @@ JIRA_DEFAULT_ASSIGNEE_ID=557058:82f65dc4-b2d1-44d4-941b-6265205d1f68
 
 | Variable | Description | Default |
 |----------|-------------|---------|
-| `CLAUDE_MODEL` | Claude model to use | `claude-sonnet-4-20250514` |
+| `CLAUDE_MODEL` | Claude model to use | `claude-sonnet-4-6` |
 | `JIRA_URL` | Jira instance URL | - |
 | `JIRA_EMAIL` | Jira account email | - |
 | `JIRA_API_TOKEN` | Jira API token | - |

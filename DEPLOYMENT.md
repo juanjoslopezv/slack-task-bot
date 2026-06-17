@@ -51,7 +51,7 @@ STRAPI_REPO_BRANCH=dev
 #### Optional Variables
 
 ```bash
-CLAUDE_MODEL=claude-sonnet-4-20250514
+CLAUDE_MODEL=claude-sonnet-4-6
 JIRA_URL=https://yourcompany.atlassian.net
 JIRA_EMAIL=your-email@company.com
 JIRA_API_TOKEN=your-jira-api-token

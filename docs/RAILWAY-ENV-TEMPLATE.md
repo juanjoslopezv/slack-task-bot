@@ -63,8 +63,8 @@ STRAPI_REPO_BRANCH=dev
 
 ### Claude Model Configuration
 ```bash
-# Default: claude-sonnet-4-20250514
-CLAUDE_MODEL=claude-sonnet-4-20250514
+# Default: claude-sonnet-4-6
+CLAUDE_MODEL=claude-sonnet-4-6
 
 # For more powerful responses (slower, more expensive):
 # CLAUDE_MODEL=claude-opus-4-20250514
@@ -184,7 +184,7 @@ Create `railway.toml` (not recommended for sensitive values):
 ```toml
 [env]
 STRAPI_REPO_BRANCH = "dev"
-CLAUDE_MODEL = "claude-sonnet-4-20250514"
+CLAUDE_MODEL = "claude-sonnet-4-6"
 ```
 
 ---
