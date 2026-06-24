@@ -97,8 +97,25 @@ export function mapTaskTypeToJiraIssueType(
 }
 
 /**
+ * Decide whether an "active" sprint is genuinely current and safe to
+ * auto-assign. Jira keeps a sprint in the "active" state until someone
+ * explicitly completes it, so a sprint whose endDate has already passed (the
+ * team forgot to close it) must NOT be auto-selected — otherwise tickets land
+ * in a stale sprint. A missing endDate (e.g. an ongoing/Kanban-style sprint)
+ * is treated as current.
+ */
+export function isSprintCurrent(
+  sprint: { endDate?: string | null },
+  now: number = Date.now()
+): boolean {
+  if (!sprint.endDate) return true;
+  return new Date(sprint.endDate).getTime() >= now;
+}
+
+/**
  * Get the active sprint for the configured board.
- * Returns null if no active sprint or board not configured.
+ * Returns null if there is no active sprint, the only active sprint has already
+ * expired (so the caller falls back to prompting), or the board isn't configured.
  */
 export async function getActiveSprint(): Promise<JiraSprint | null> {
   if (!agileClient || !config.jira.boardId) return null;
@@ -110,8 +127,11 @@ export async function getActiveSprint(): Promise<JiraSprint | null> {
     });
 
     const sprints = result.values || [];
-    if (sprints.length > 0) {
-      const s = sprints[0];
+    // Only auto-select an active sprint that hasn't already ended. If the only
+    // "active" sprint is expired, return null so the flow prompts the user to
+    // pick from the active+future list instead of silently using a stale sprint.
+    const s = sprints.find(sprint => isSprintCurrent(sprint));
+    if (s) {
       return {
         id: s.id!,
         name: s.name!,

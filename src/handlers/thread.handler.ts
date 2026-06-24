@@ -96,7 +96,7 @@ async function createTicketAndAssignSprint(
     let message = `:white_check_mark: Jira ticket created: <${result.url}|${result.key}>`;
 
     if (result.reporterDropped) {
-      message += `\n:warning: Reporter field is not available on the Jira create screen — ticket created with default reporter.`;
+      message += `\n:warning: Couldn't set the reporter — the bot's Jira account lacks the *Modify Reporter* permission on this project. Ticket created with the default reporter. (A Jira admin can grant that permission to fix this.)`;
     } else if (conversation.resolvedReporterName) {
       message += `\n:bust_in_silhouette: Reporter: ${conversation.resolvedReporterName}`;
     }
