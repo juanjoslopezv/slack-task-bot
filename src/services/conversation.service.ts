@@ -415,8 +415,12 @@ export function parseNumericSelection(
   message: string,
   maxOptions: number
 ): number {
-  const normalized = message.trim();
-  const match = normalized.match(/^(?:option\s*|#)?(\d+)$/i);
+  // Strip Slack mention markup (e.g. "<@U_BOT> 5" when the user @-mentions the
+  // bot in their reply) before parsing.
+  const normalized = message.replace(/<@[A-Z0-9]+>/g, ' ').trim();
+  // Match a leading number, optionally prefixed by "option"/"#" and optionally
+  // followed by the option label (e.g. "5. Pablo Zarate" => 5).
+  const match = normalized.match(/^(?:option\s*|#)?(\d+)(?:[.):\s]|$)/i);
   if (!match) return -1;
 
   const num = parseInt(match[1], 10);

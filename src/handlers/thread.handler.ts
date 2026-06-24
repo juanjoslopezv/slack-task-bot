@@ -475,7 +475,10 @@ export async function handleThreadReply({ event, say, context, client }: Message
     }
 
     if (conversation.stage === 'awaiting_reporter_selection') {
-      const normalized = userMessage.toLowerCase().trim();
+      // Strip bot/user mention markup so "@BackendTaskBot skip" / "@BackendTaskBot 5"
+      // are recognized (Slack includes the literal <@U_BOT> markup in the text).
+      const cleaned = userMessage.replace(/<@[A-Z0-9]+>/g, ' ').trim();
+      const normalized = cleaned.toLowerCase();
 
       if (normalized === 'skip' || normalized === 'none' || normalized === 'default') {
         await say({
@@ -511,7 +514,8 @@ export async function handleThreadReply({ event, say, context, client }: Message
     }
 
     if (conversation.stage === 'awaiting_sprint_selection') {
-      const normalized = userMessage.toLowerCase().trim();
+      const cleaned = userMessage.replace(/<@[A-Z0-9]+>/g, ' ').trim();
+      const normalized = cleaned.toLowerCase();
 
       if (normalized === 'skip' || normalized === 'none') {
         await say({

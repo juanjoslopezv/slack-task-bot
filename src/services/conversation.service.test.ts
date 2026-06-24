@@ -5,6 +5,7 @@ import {
   TICKET_CREATION_TRIGGERS,
   setHintedReporter,
   getConversation,
+  parseNumericSelection,
 } from './conversation.service';
 
 // conversation.service uses a module-level Map; reset between tests
@@ -64,6 +65,37 @@ describe('shouldCreateTicketFromQuestion', () => {
     const taskThread = 'test-thread-task-' + Date.now();
     createConversation(taskThread, 'C123', 'task', 'Add feature', 'feature', [], 'ctx');
     expect(shouldCreateTicketFromQuestion(taskThread, 'create a ticket')).toBe(false);
+  });
+});
+
+describe('parseNumericSelection', () => {
+  it('parses a bare number', () => {
+    expect(parseNumericSelection('5', 16)).toBe(4);
+  });
+
+  it('parses "option N" and "#N" forms', () => {
+    expect(parseNumericSelection('option 3', 16)).toBe(2);
+    expect(parseNumericSelection('#3', 16)).toBe(2);
+  });
+
+  it('parses a number when the bot is @-mentioned in the reply', () => {
+    // Slack sends the literal mention markup, e.g. "@BackendTaskBot 5" => "<@U07BOT123> 5"
+    expect(parseNumericSelection('<@U07BOT123> 5', 16)).toBe(4);
+  });
+
+  it('parses a number followed by the option label', () => {
+    expect(parseNumericSelection('5. Pablo Zarate', 16)).toBe(4);
+    expect(parseNumericSelection('<@U07BOT123> 5. Pablo Zarate', 16)).toBe(4);
+  });
+
+  it('returns -1 when out of range', () => {
+    expect(parseNumericSelection('17', 16)).toBe(-1);
+    expect(parseNumericSelection('0', 16)).toBe(-1);
+  });
+
+  it('returns -1 for non-numeric input', () => {
+    expect(parseNumericSelection('skip', 16)).toBe(-1);
+    expect(parseNumericSelection('<@U07BOT123> hello there', 16)).toBe(-1);
   });
 });
 
